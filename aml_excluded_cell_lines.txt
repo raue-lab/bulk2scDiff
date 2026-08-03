@@ -1,0 +1,6 @@
+# Cell-line samples removed from the AML cohort (van Galen 2019, NanoWell).
+# These are immortalized cell lines, not primary patient material, so they are
+# excluded from the no-cell-line ("_nocl") rerun at every stage (splits, VAE,
+# diffusion, sampling). Consumed via --exclude_sample_ids_path.
+MUTZ3
+OCI.AML3
