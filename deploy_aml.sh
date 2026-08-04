@@ -24,7 +24,7 @@
 #   3. Generate one .npz per sample for the train and test splits
 #
 # Usage:
-#   bash aml_pseudobulk_1M_nocl_deployment.sh
+#   bash deploy_aml.sh
 #
 # Optional env-var overrides:
 #   FORCE_REGENERATE_SAMPLES=1   — overwrite existing .npz files
@@ -144,7 +144,7 @@ generate_for_split() {
     fi
 
     echo "[${split_label}] Generating ${sample_id}"
-    python pseudobulk_sample.py \
+    python sample.py \
       --data_dir   "${DATA_DIR}" \
       --model_path "${MODEL_PATH}" \
       --sample_dir "${sample_prefix}" \
@@ -163,7 +163,7 @@ if [[ -f "${TRAIN_SAMPLE_IDS_PATH}" && -f "${TEST_SAMPLE_IDS_PATH}" ]]; then
   echo "Split files found, skipping sample split generation"
 else
   echo "Creating train/test sample splits (inherit ${INHERIT_SPLIT_DIR}, exclude cell lines)"
-  python make_aml_sample_splits.py \
+  python split_aml.py \
     --data_dir                "${DATA_DIR}" \
     --sample_key              "${SAMPLE_KEY}" \
     --test_fraction           0.2 \
@@ -197,7 +197,7 @@ if compgen -G "${MODEL_DIR}/model*.pt" > /dev/null; then
   echo "Diffusion checkpoint found, skipping diffusion training"
 else
   echo "Training diffusion backbone"
-  python cell_train.py \
+  python train.py \
     --data_dir              "${DATA_DIR}" \
     --vae_path              "${VAE_PATH}" \
     --model_name            "${MODEL_NAME}" \
@@ -225,4 +225,4 @@ echo "Generating test-split samples"
 generate_for_split "${TEST_SAMPLE_IDS_PATH}" "${TEST_SAMPLE_PREFIX}" test
 
 echo "AML no-cell-line pseudobulk pipeline complete"
-echo "Evaluate with: notebooks_for_manuscripts_model_eval/script_pseudobulk_conditioning_audit_aml.ipynb"
+echo "Evaluate with: notebooks/aml_cond_audit_mmd.ipynb"

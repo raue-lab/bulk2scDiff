@@ -2,8 +2,7 @@
 # BRCA2021 pseudobulk-conditioned full pipeline — 1,000,000-step, all-train VAE.
 # This is the canonical BRCA2021 driver used for the manuscript results.
 #
-# Design (uniform with the AML no-cell-line driver,
-# aml_pseudobulk_1M_nocl_deployment.sh):
+# Design (uniform with the AML no-cell-line driver, deploy_aml.sh):
 #   - The VAE is fine-tuned on ALL 26 samples, including the 5 held-out test
 #     samples. A pilot ablation showed this improves test-cell reconstruction
 #     fidelity substantially (mean per-gene Pearson r: 0.166 -> 0.253) versus
@@ -20,7 +19,7 @@
 #   4. Generate one .npz per sample for the train and test splits
 #
 # Usage:
-#   bash brca2021_pseudobulk_1M_alltrain_deployment.sh
+#   bash deploy_brca.sh
 #
 # Optional env-var overrides:
 #   FORCE_REGENERATE_SAMPLES=1   — overwrite existing .npz files
@@ -140,7 +139,7 @@ generate_for_split() {
     fi
 
     echo "[${split_label}] Generating ${sample_id}"
-    python pseudobulk_sample.py \
+    python sample.py \
       --data_dir   "${DATA_DIR}" \
       --model_path "${MODEL_PATH}" \
       --sample_dir "${sample_prefix}" \
@@ -156,7 +155,7 @@ generate_for_split() {
 
 # ── Step 1: Write split files ──────────────────────────────────────────────────
 echo "Writing BRCA2021 subtype-balanced train/test split files"
-python make_brca2021_subtype_splits.py \
+python split_brca.py \
   --data_dir  "${DATA_DIR}" \
   --sample_key "${SAMPLE_KEY}" \
   --group_key  "${GROUP_KEY}" \
@@ -188,7 +187,7 @@ if compgen -G "${MODEL_DIR}/model*.pt" > /dev/null; then
   echo "Diffusion checkpoint found, skipping diffusion training"
 else
   echo "Training diffusion backbone on BRCA2021 training samples"
-  python cell_train.py \
+  python train.py \
     --data_dir              "${DATA_DIR}" \
     --vae_path              "${VAE_PATH}" \
     --model_name            "${MODEL_NAME}" \
@@ -219,4 +218,4 @@ echo "Generating test-split samples (5 samples)"
 generate_for_split "${TEST_SAMPLE_IDS_PATH}" "${TEST_SAMPLE_PREFIX}" test
 
 echo "BRCA2021 all-train pseudobulk pipeline complete"
-echo "Evaluate with: notebooks/script_pseudobulk_conditioning_audit_brca2021.ipynb"
+echo "Evaluate with: notebooks/brca_cond_audit_mmd.ipynb"

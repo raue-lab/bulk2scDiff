@@ -52,10 +52,10 @@ Each dataset has an idempotent end-to-end driver that creates splits, fine-tunes
 
 ```
 # AML — 1M steps, cell lines excluded
-bash aml_pseudobulk_1M_nocl_deployment.sh
+bash deploy_aml.sh
 
 # BRCA2021 — 1M steps, VAE trained on all samples (incl. held-out test)
-bash brca2021_pseudobulk_1M_alltrain_deployment.sh
+bash deploy_brca.sh
 ```
 
 Useful env overrides for the drivers: `FORCE_REGENERATE_SAMPLES=1`, `NUM_SAMPLES_OVERRIDE=N`.
@@ -66,10 +66,10 @@ Outputs land under `output/`: checkpoints in `output/checkpoint/`, logs in `outp
 
 The drivers wrap these steps, which can also be run directly:
 
-1. **Create sample splits** — `make_aml_sample_splits.py` (random 80/20) or `make_brca2021_subtype_splits.py` (fixed, subtype-balanced); both write `train_samples.txt`, `test_samples.txt`, and `sample_summary.tsv`.
+1. **Create sample splits** — `split_aml.py` (random 80/20) or `split_brca.py` (fixed, subtype-balanced); both write `train_samples.txt`, `test_samples.txt`, and `sample_summary.tsv`.
 2. **Train the VAE** — `python VAE/VAE_train.py --data_dir <h5ad> --num_genes <retained_genes> --save_dir <dir> --max_steps 200000 --state_dict /share/models/SCimilarity/annotation_model_v1 --sample_key SampleID`. Use `--include_sample_ids_path`/`--exclude_sample_ids_path` to restrict which samples the VAE sees (the AML driver excludes cell lines only; the BRCA2021 driver passes neither flag, so the VAE sees every sample).
-3. **Train the diffusion model** — `python cell_train.py --data_dir <h5ad> --vae_path <vae.pt> --model_name <name> --save_dir output/checkpoint/backbone --lr_anneal_steps 1000000 --sample_key SampleID --cond_pseudobulk True --cond_embed_dim 128 --include_sample_ids_path <train_samples.txt>`. Add `--mmd_eval_interval 10000 --mmd_eval_validation_sample_ids_path <test_samples.txt>` for periodic held-out MMD evaluation.
-4. **Generate samples** — `python pseudobulk_sample.py --data_dir <h5ad> --model_path <model.pt> --sample_dir <prefix> --sample_id <SampleID> --sample_key SampleID --cond_pseudobulk True --cond_embed_dim 128`.
+3. **Train the diffusion model** — `python train.py --data_dir <h5ad> --vae_path <vae.pt> --model_name <name> --save_dir output/checkpoint/backbone --lr_anneal_steps 1000000 --sample_key SampleID --cond_pseudobulk True --cond_embed_dim 128 --include_sample_ids_path <train_samples.txt>`. Add `--mmd_eval_interval 10000 --mmd_eval_validation_sample_ids_path <test_samples.txt>` for periodic held-out MMD evaluation.
+4. **Generate samples** — `python sample.py --data_dir <h5ad> --model_path <model.pt> --sample_dir <prefix> --sample_id <SampleID> --sample_key SampleID --cond_pseudobulk True --cond_embed_dim 128`.
 
 > Note: `--cond_embed_dim` must match between training and sampling (128 in both drivers; the code default is 256).
 
@@ -77,15 +77,14 @@ Each generated `.npz` stores: the generated latent cells (`cell_gen`), the sourc
 
 ## Evaluation
 
-The notebooks and scripts in [notebooks/](notebooks/) cover the full evaluation suite (see §10 of the [walkthrough](docs/pseudobulk_conditioned_scdiffusion.md) for details), shipped with their executed outputs so results are visible without rerunning:
+The notebooks in [notebooks/](notebooks/) cover the full evaluation suite (see §10 of the [walkthrough](docs/pseudobulk_conditioned_scdiffusion.md) for details). AML notebooks carry their executed outputs inline; the BRCA2021 notebooks were executed headlessly and ship as code only — rerun them to see the figures:
 
-- **Training diagnostics** — `script_pseudobulk_training_progress_{aml,brca2021}_1M.ipynb` (loss, gradients, and train-vs-held-out MMD over training).
-- **Held-out conditioning audit (primary metric)** — `script_pseudobulk_conditioning_audit_{aml,brca2021}[_edist].ipynb` (per-sample latent-space MMD / E-distance vs same-sample and other-sample baselines).
-- **Conditioning-specificity swap audit** — `run_conditioning_swap.py` (command-line): for every real sample, compares matched generation against every mismatched generation; reports the top-1 correct-match rate. `make_swap_figures.py` / `make_swap_figures_notitle.py` render the cross-sample heatmaps.
-- **Qualitative UMAPs** — `script_pseudobulk_conditioned_multi_sample_umap_{aml,brca2021}.ipynb` (pooled + per-sample, in gene and latent space).
-- **Marker-gene biology** — `script_{aml,brca2021}_marker_gene_audit_{train,test}.ipynb` (cell-type / subtype marker fidelity).
+- **Training diagnostics** — `{aml,brca}_train_progress.ipynb` (loss, gradients, and train-vs-held-out MMD over training).
+- **Held-out conditioning audit (primary metric)** — `{aml,brca}_cond_audit_{mmd,edist}.ipynb` (per-sample latent-space MMD / E-distance vs same-sample and other-sample baselines).
+- **Qualitative UMAPs** — `{aml,brca}_multi_umap.ipynb` (pooled + per-sample, in gene and latent space).
+- **Marker-gene biology** — `{aml,brca}_marker_{train,test}.ipynb` and `{aml,brca}_global_umap_{train,test}.ipynb` (cell-type / subtype marker fidelity).
 
-The held-out MMD/E-distance audit and the conditioning swap top-1 match rate are the recommended quantitative evaluations; the UMAP and marker notebooks are supporting qualitative checks.
+The held-out MMD/E-distance audit is the recommended quantitative evaluation; the UMAP and marker notebooks are supporting qualitative checks.
 
 ## Data
 

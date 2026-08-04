@@ -20,8 +20,8 @@ The project is currently run on two `.h5ad` datasets, each keyed by `SampleID`:
 
 Split files live under `output/sample_splits/` as `train_samples.txt` / `test_samples.txt` (one `SampleID` per line) plus a `sample_summary.tsv`.
 
-- **AML** splits are produced by [make_aml_sample_splits.py](../make_aml_sample_splits.py). The base split is a random 80/20 sample-level split (`--test_fraction 0.2`, fixed `--seed 1234`) written to `output/sample_splits/aml/` (43 samples). The **canonical run removes the two cell-line samples** (`MUTZ3`, `OCI.AML3`, listed in [aml_excluded_cell_lines.txt](../aml_excluded_cell_lines.txt)) with `--exclude_sample_ids_path`, and inherits the base assignment with `--inherit_split_dir output/sample_splits/aml` so the 9-sample held-out test set is unchanged. The resulting no-cell-line split (32 train / 9 test) is written to `output/sample_splits/aml_nocl/`.
-- **BRCA2021** splits are produced by [make_brca2021_subtype_splits.py](../make_brca2021_subtype_splits.py): a *fixed, non-random* 21/5 split into `output/sample_splits/brca2021_manual/`, balanced across cancer subtypes (train: ER+×9, HER2+×4, TNBC×8; test: ER+×2, HER2+×1, TNBC×2). The script validates that the hard-coded assignment exactly covers the dataset and matches the expected subtype counts.
+- **AML** splits are produced by [split_aml.py](../split_aml.py). The base split is a random 80/20 sample-level split (`--test_fraction 0.2`, fixed `--seed 1234`) written to `output/sample_splits/aml/` (43 samples). The **canonical run removes the two cell-line samples** (`MUTZ3`, `OCI.AML3`, listed in [aml_excluded_cell_lines.txt](../aml_excluded_cell_lines.txt)) with `--exclude_sample_ids_path`, and inherits the base assignment with `--inherit_split_dir output/sample_splits/aml` so the 9-sample held-out test set is unchanged. The resulting no-cell-line split (32 train / 9 test) is written to `output/sample_splits/aml_nocl/`.
+- **BRCA2021** splits are produced by [split_brca.py](../split_brca.py): a *fixed, non-random* 21/5 split into `output/sample_splits/brca2021_manual/`, balanced across cancer subtypes (train: ER+×9, HER2+×4, TNBC×8; test: ER+×2, HER2+×1, TNBC×2). The script validates that the hard-coded assignment exactly covers the dataset and matches the expected subtype counts.
 
 ## 3. Data Preprocessing
 
@@ -121,7 +121,7 @@ Per training step: take a clean latent cell, sample Gaussian noise, run the forw
 
 ## 8. Training And The 1M Workflow
 
-Diffusion training is driven by [cell_train.py](../cell_train.py) (`TrainLoop`): `lr=1e-4`, `weight_decay=1e-4`, `batch_size=128`, `ema_rate=0.9999`, `save_interval=200000`, `lr_anneal_steps=1000000` (the LR anneals linearly to zero over that budget). With `save_interval=200000`, checkpoints land at steps `0, 200K, 400K, 600K, 800K, 1M`:
+Diffusion training is driven by [train.py](../train.py) (`TrainLoop`): `lr=1e-4`, `weight_decay=1e-4`, `batch_size=128`, `ema_rate=0.9999`, `save_interval=200000`, `lr_anneal_steps=1000000` (the LR anneals linearly to zero over that budget). With `save_interval=200000`, checkpoints land at steps `0, 200K, 400K, 600K, 800K, 1M`:
 
 - checkpoints: `output/checkpoint/backbone/<model_name>/model{step}.pt` (plus `ema_*` and `opt_*`)
 - logs: `output/logs/<model_name>/` (`progress.csv`, `mmd_eval_history.csv`, `log.txt`)
@@ -142,14 +142,14 @@ This makes the held-out test MMD a signal you can watch *during* training, not j
 
 Each dataset has one canonical, idempotent (skips steps whose outputs already exist) end-to-end driver, both at 1,000,000 diffusion steps:
 
-- [aml_pseudobulk_1M_nocl_deployment.sh](../aml_pseudobulk_1M_nocl_deployment.sh) — AML, **cell lines removed**. Stage 0 builds `output/sample_splits/aml_nocl/` (excluding the two cell-line samples and inheriting the base 80/20 split assignment via `--inherit_split_dir`), stage 1 fine-tunes the VAE into `output/checkpoint/AE/my_VAE_nocl` with `--exclude_sample_ids_path` (so it still sees the held-out test samples, just not the cell lines), and stages 2–3 train and sample the `aml_pseudobulk_1M_nocl` model.
-- [brca2021_pseudobulk_1M_alltrain_deployment.sh](../brca2021_pseudobulk_1M_alltrain_deployment.sh) — BRCA2021, **VAE trained on all 26 samples**. Stage 0 writes the fixed subtype-balanced split, stage 1 fine-tunes the VAE into `output/checkpoint/AE/brca2021_VAE_alltrain` with no sample filtering at all (all 26 samples), and stages 2–3 train and sample the `brca2021_pseudobulk_1M_alltrain` model, restricting diffusion training to the 21 training samples via `--include_sample_ids_path`.
+- [deploy_aml.sh](../deploy_aml.sh) — AML, **cell lines removed**. Stage 0 builds `output/sample_splits/aml_nocl/` (excluding the two cell-line samples and inheriting the base 80/20 split assignment via `--inherit_split_dir`), stage 1 fine-tunes the VAE into `output/checkpoint/AE/my_VAE_nocl` with `--exclude_sample_ids_path` (so it still sees the held-out test samples, just not the cell lines), and stages 2–3 train and sample the `aml_pseudobulk_1M_nocl` model.
+- [deploy_brca.sh](../deploy_brca.sh) — BRCA2021, **VAE trained on all 26 samples**. Stage 0 writes the fixed subtype-balanced split, stage 1 fine-tunes the VAE into `output/checkpoint/AE/brca2021_VAE_alltrain` with no sample filtering at all (all 26 samples), and stages 2–3 train and sample the `brca2021_pseudobulk_1M_alltrain` model, restricting diffusion training to the 21 training samples via `--include_sample_ids_path`.
 
 Both drivers run the same four stages: (0) write the train/test split files, (1) fine-tune the VAE, (2) train the pseudobulk-conditioned diffusion backbone on the training samples only (`--include_sample_ids_path train_samples.txt`) with periodic MMD eval against the test split, and (3) generate one `.npz` per sample for both the train and test splits, matching each sample's real cell count by default. Stage 3 uses `resolve_highest_step_checkpoint` to pick the final checkpoint (`model1000000.pt`). Env overrides: `FORCE_REGENERATE_SAMPLES=1` and `NUM_SAMPLES_OVERRIDE=N`.
 
 ## 9. Sampling
 
-Sample-conditioned generation is handled by [pseudobulk_sample.py](../pseudobulk_sample.py). Given a chosen `SampleID`, it:
+Sample-conditioned generation is handled by [sample.py](../sample.py). Given a chosen `SampleID`, it:
 
 1. loads and preprocesses the dataset
 2. recomputes that sample's pseudobulk from raw counts with the same sample-level normalization + `log1p`
@@ -166,11 +166,11 @@ The saved `.npz` contains:
 
 ## 10. Evaluation Notebooks
 
-All evaluation lives in [notebooks/](../notebooks/), shipped with their executed outputs so the results are visible without rerunning (a few BRCA2021 notebooks were executed headlessly via [notebooks/nbrun.py](../notebooks/nbrun.py); for those, the rendered figures sit in a sibling `<notebook_stem>_figs/` folder instead of being embedded inline). The notebooks come in dataset- and split-specific variants; structurally-identical variants differ only in the data path, split file, generated-`.npz` glob, and titles. All notebooks here read the **1M** canonical generated outputs and the shared VAE checkpoint. They fall into four groups.
+All evaluation lives in [notebooks/](../notebooks/). The notebooks come in dataset- and split-specific variants (file names start with `aml_` or `brca_`); structurally-identical variants differ only in the data path, split file, generated-`.npz` glob, and titles. All notebooks here read the **1M** canonical generated outputs and the shared VAE checkpoint. AML notebooks carry their executed outputs inline; the BRCA2021 notebooks were executed headlessly and ship as code only — rerun them to see the figures. They fall into four groups.
 
 ### 10.1 Training-progress diagnostics
 
-`script_pseudobulk_training_progress_aml_1M.ipynb`, `..._brca2021_1M.ipynb`
+`aml_train_progress.ipynb`, `brca_train_progress.ipynb`
 
 Visualize one training run by reading `progress.csv`, `mmd_eval_history.csv`, and `log.txt` from the corresponding `output/logs/<model_name>` directory. Sections:
 
@@ -183,11 +183,11 @@ These tell you whether optimization is healthy and whether held-out generation i
 
 ### 10.2 Held-out conditioning audit (primary quantitative check)
 
-`script_pseudobulk_conditioning_audit_aml.ipynb`, `script_pseudobulk_conditioning_audit_brca2021.ipynb`
+`aml_cond_audit_mmd.ipynb`, `aml_cond_audit_edist.ipynb`, `brca_cond_audit_mmd.ipynb`, `brca_cond_audit_edist.ipynb`
 
-The recommended after-the-fact evaluation. For every generated `.npz` (1M outputs), the notebook looks up the matching real cells, encodes them into the shared VAE latent space, and compares the real vs generated latent clouds with RBF-kernel MMD (a distribution-vs-distribution comparison; no 1:1 cell matching). For each sample it reports:
+The recommended after-the-fact evaluation. For every generated `.npz` (1M outputs), the notebook looks up the matching real cells, encodes them into the shared VAE latent space, and compares the real vs generated latent clouds with RBF-kernel MMD (`_mmd`) or energy distance (`_edist`) — a distribution-vs-distribution comparison; no 1:1 cell matching. For each sample it reports:
 
-- `latent_mmd_rbf` — the main per-sample score (lower is better)
+- `latent_mmd_rbf` (or the E-distance equivalent) — the main per-sample score (lower is better)
 - `real_vs_real_mmd_rbf` — a same-sample baseline (the real sample split into two random halves)
 - `real_vs_other_sample_mmd_rbf` — a mismatched baseline using the nearest wrong real sample in latent-centroid space
 
@@ -195,19 +195,19 @@ A good generated sample sits closer to its same-sample baseline than to the near
 
 ### 10.3 Qualitative UMAP overlays
 
-**`script_pseudobulk_conditioned_multi_sample_umap_aml.ipynb`** and **`..._brca2021.ipynb`** — dataset-level notebooks that pool *all* available generated samples. They provide:
+`aml_multi_umap.ipynb`, `brca_multi_umap.ipynb` — dataset-level notebooks that pool *all* available generated samples. They provide:
 
 - a global pooled real-vs-generated UMAP (Seurat-HVG gene space), colored by source and by `SampleID`
 - a per-sample proxy-pseudobulk agreement table and bar plot (Pearson/Spearman between the stored conditioning pseudobulk and the decoded generated proxy)
 - per-sample real-vs-generated overlays rendered three ways: (1) a joint gene-space HVG UMAP, (2) an `sc.tl.ingest` projection of generated cells onto a real-only reference embedding, and (3) a joint **VAE-latent-space** UMAP (encoder(real) vs diffusion(generated)) — the most direct diagnostic, since latent overlap there but not in gene space would implicate the decoder rather than the diffusion model
 
-Both notebooks read the `_1M` outputs (`aml_pseudobulk_1M_nocl_*.npz` and `brca2021_pseudobulk_1M_*.npz`).
+Both notebooks read the `_1M` outputs (`aml_pseudobulk_1M_nocl_*.npz` and `brca2021_pseudobulk_1M_alltrain_*.npz`).
 
 ### 10.4 Marker-gene biological audit
 
-`script_aml_marker_gene_audit_{train,test}.ipynb`, `script_brca2021_marker_gene_audit_{train,test}.ipynb`
+`aml_marker_train.ipynb`, `aml_marker_test.ipynb`, `brca_marker_train.ipynb`, `brca_marker_test.ipynb`, plus the global-UMAP companions `aml_global_umap_train.ipynb`, `aml_global_umap_test.ipynb`, `brca_global_umap_train.ipynb`, `brca_global_umap_test.ipynb`
 
-These check whether the VAE + 1M diffusion model preserves cell-type / subtype marker biology in decoded generated cells, against the matched real cells of one split. The `train`/`test` pair for each dataset is identical except for the split file and generated glob. Each notebook decodes generated latents to the full gene space and runs six sections:
+These check whether the VAE + 1M diffusion model preserves cell-type / subtype marker biology in decoded generated cells, against the matched real cells of one split. The `train`/`test` pair for each dataset is identical except for the split file and generated glob. The `_marker_*` notebooks decode generated latents to the full gene space and run six sections:
 
 1. **Joint Seurat-HVG UMAP** — real + generated embedded together (source-mixing diagnostic), real cells colored by author cell type, generated cells colored by `SampleID`.
 2. **Author cell-type UMAP** — the same joint embedding colored by cell-type labels, to confirm biological structure is preserved.
@@ -216,48 +216,11 @@ These check whether the VAE + 1M diffusion model preserves cell-type / subtype m
 5. **Marker-positive cell fraction** — bars of the fraction of cells expressing each marker above a `0.5` `log1p` threshold, real vs generated.
 6. **Global gene-mean correlation** — per-gene mean `log1p` across all cells, real vs generated, with Pearson/Spearman and a `y = x` reference, marker genes highlighted.
 
+The `_global_umap_*` companions produce the pooled real-vs-generated UMAP and housekeeping-gene overlays that back sections 1–2 above, read by the `_marker_*` notebooks from a shared cache.
+
 Marker panels differ by dataset: **AML** uses three immune panels (T cell, B cell, Monocyte/Macrophage) plus `ACTB`/`HPRT1` controls, mapping the `CellType` labels to immune classes; **BRCA2021** adds cancer-subtype panels (ER+, HER2+, TNBC) alongside immune panels and the controls, and splits boxplots by `subtype`.
 
-### 10.5 Conditioning-specificity swap audit (cross-sample control)
-
-[run_conditioning_swap.py](../notebooks/run_conditioning_swap.py) — command-line script (not a notebook). For every real sample it compares matched generation (`MMD(real_i, gen_i)`, generated from that sample's own pseudobulk) against mismatched generation (`MMD(real_i, gen_j)`, `j != i`, generated from every *other* sample's pseudobulk). If conditioning is actually driving generation, the matched score should be the lowest in each row (headline metric: top-1 correct-match rate). Supports `mmd` and `edist` (energy distance) metrics via `--metric`. [make_swap_figures.py](../notebooks/make_swap_figures.py) / [make_swap_figures_notitle.py](../notebooks/make_swap_figures_notitle.py) render the resulting cross-sample matrices as heatmaps (BRCA2021 + AML side by side). [compute_pseudobulk_corr.py](../notebooks/compute_pseudobulk_corr.py) recovers the companion per-sample pseudobulk-agreement correlation for the BRCA2021 all-train run using the same decoded-proxy methodology as §10.3.
-
-## 11. Qualitative Figures (AML examples)
-
-These illustrative AML figures are kept from earlier runs of the qualitative notebooks. They show what the pipeline produces but are not the primary evidence — the held-out latent-space MMD audit (§10.2) is.
-
-### 11.1 Global AML real vs generated view
-
-![Global AML pooled real vs generated UMAP](assets/pseudobulk_conditioning/global_real_vs_generated_umap.png)
-
-*Figure 1. Global pooled UMAP from `script_pseudobulk_conditioned_multi_sample_umap_aml.ipynb`: generated cells pooled across all sample-specific pseudobulk conditions vs the pooled real AML cells.*
-
-### 11.2 Per-sample pseudobulk agreement
-
-![Per-sample pseudobulk agreement](assets/pseudobulk_conditioning/per_sample_pseudobulk_agreement.png)
-
-*Figure 2. Per-sample agreement from `script_pseudobulk_conditioned_multi_sample_umap_aml.ipynb`: Pearson correlation between the conditioning pseudobulk and the decoded generated proxy pseudobulk for each sample.*
-
-### 11.3 One-sample pseudobulk agreement example
-
-![AML1012.D0 input vs generated pseudobulk](assets/pseudobulk_conditioning/aml1012d0_input_vs_generated_pseudobulk.png)
-
-*Figure 3. Example pseudobulk scatter for `AML1012.D0`: stored conditioning pseudobulk vs the proxy aggregated from decoded generated cells. Illustrative figure from an earlier single-sample run; the shipped [script_pseudobulk_conditioned_multi_sample_umap_aml.ipynb](../notebooks/script_pseudobulk_conditioned_multi_sample_umap_aml.ipynb) reproduces this per-sample agreement check for every sample at once.*
-
-### 11.4 One-sample real vs generated UMAP
-
-![AML921A.D0 real vs generated UMAP](assets/pseudobulk_conditioning/aml921ad0.png)
-
-*Figure 4. Sample-matched gene-space UMAP for `AML921A.D0`: real and pseudobulk-conditioned generated cells in one embedding. Illustrative figure from an earlier single-sample run; see the shipped multi-sample notebook (§10.3) for the equivalent per-sample overlays.*
-
-## 12. How To Read These Figures
-
-- The global UMAP is qualitative: it shows whether generated cells occupy a plausible region of expression space, not whether each sample is reconstructed correctly.
-- The per-sample pseudobulk agreement is a decoded-cell-space heuristic. Because the training condition is a raw-count aggregation followed by sample-level normalization, the notebooks compare against a decoded proxy pseudobulk (`log1p(mean(expm1(cells)))`) rather than re-applying the training-time `sum` to decoded values.
-- The single-sample scatter is a useful sanity check but not an exact like-for-like comparison to the training-time pseudobulk definition.
-- The sample-matched and latent-space UMAPs are useful for spotting overlap, separation, and possible mode collapse; latent overlap without gene-space overlap points at the decoder, not the diffusion model.
-
-## 13. Important Implementation Notes And Caveats
+## 11. Important Implementation Notes And Caveats
 
 What the implementation does deliberately:
 
@@ -275,30 +238,30 @@ Caveats:
 - The AML and BRCA2021 VAEs are trained on different sample populations by design (AML: all non-cell-line samples; BRCA2021: literally all samples, including held-out test) — see §5. Held-out evaluation validity rests on the diffusion backbone, not the VAE, never having trained on the test samples.
 - For strong claims, prefer held-out-sample evaluation with distribution-level metrics (latent-space MMD) over pseudobulk agreement alone.
 
-## 14. Relevant Files
+## 12. Relevant Files
 
-- [aml_pseudobulk_1M_nocl_deployment.sh](../aml_pseudobulk_1M_nocl_deployment.sh): canonical AML driver (1M steps, cell lines removed)
+- [deploy_aml.sh](../deploy_aml.sh): canonical AML driver (1M steps, cell lines removed)
 - [aml_excluded_cell_lines.txt](../aml_excluded_cell_lines.txt): cell-line `SampleID`s deleted from the canonical AML run
-- [brca2021_pseudobulk_1M_alltrain_deployment.sh](../brca2021_pseudobulk_1M_alltrain_deployment.sh): canonical BRCA2021 driver (1M steps, VAE trained on all 26 samples)
-- [make_aml_sample_splits.py](../make_aml_sample_splits.py) / [make_brca2021_subtype_splits.py](../make_brca2021_subtype_splits.py): sample-split generators
+- [deploy_brca.sh](../deploy_brca.sh): canonical BRCA2021 driver (1M steps, VAE trained on all 26 samples)
+- [split_aml.py](../split_aml.py) / [split_brca.py](../split_brca.py): sample-split generators
 - [guided_diffusion/cell_datasets_loader.py](../guided_diffusion/cell_datasets_loader.py): preprocessing, pseudobulk construction, dataset assembly, VAE encode/decode helpers
 - [guided_diffusion/cell_model.py](../guided_diffusion/cell_model.py): pseudobulk encoder, FiLM residual blocks, latent denoiser
 - [guided_diffusion/pseudobulk_mmd_eval.py](../guided_diffusion/pseudobulk_mmd_eval.py): in-training periodic latent-space MMD evaluation
 - [VAE/VAE_train.py](../VAE/VAE_train.py) / [VAE/VAE_model.py](../VAE/VAE_model.py): latent autoencoder training and architecture
-- [cell_train.py](../cell_train.py): diffusion training entry point
-- [pseudobulk_sample.py](../pseudobulk_sample.py): sample-conditioned latent generation
+- [train.py](../train.py): diffusion training entry point
+- [sample.py](../sample.py): sample-conditioned latent generation
 - [notebooks/](../notebooks/): the evaluation notebooks and scripts described in §10
 
-## 15. Recommended Validation Flow
+## 13. Recommended Validation Flow
 
 1. Create the sample-level train/test split (random for AML, fixed subtype-balanced for BRCA2021).
 2. Fine-tune the VAE — on all non-cell-line samples for AML, on all samples (including held-out test) for BRCA2021.
 3. Train the pseudobulk-conditioned diffusion model on the training samples only, with periodic held-out MMD evaluation enabled.
-4. Review the run with the matching `script_pseudobulk_training_progress_*_1M` notebook to confirm stable optimization and inspect the train vs held-out test MMD trend before trusting samples.
+4. Review the run with the matching `{aml,brca}_train_progress.ipynb` notebook to confirm stable optimization and inspect the train vs held-out test MMD trend before trusting samples.
 5. Generate synthetic populations for both splits (the deployment scripts do this for every sample).
-6. Run the `script_pseudobulk_conditioning_audit_*` notebook and/or `run_conditioning_swap.py` as the primary held-out evaluation (per-sample latent MMD/E-distance vs same-sample and mismatched-sample baselines).
+6. Run the `{aml,brca}_cond_audit_{mmd,edist}.ipynb` notebooks as the primary held-out evaluation (per-sample latent MMD/E-distance vs same-sample and other-sample baselines).
 7. Use the marker-gene audit and UMAP notebooks as supporting biological and qualitative checks.
 
-## 16. Summary
+## 14. Summary
 
-bulk2scDiff is a pseudobulk-conditioned latent diffusion model for single-cell RNA-seq generation, combining VAE-based latent representation learning, sample-level pseudobulk construction, a continuous pseudobulk encoder, and FiLM-conditioned latent diffusion. It ships one canonical, manuscript-reported 1,000,000-step configuration per dataset (AML: cell lines removed; BRCA2021: VAE trained on all samples including held-out test), periodic in-training held-out MMD evaluation, and a notebook suite covering training diagnostics, held-out distribution audits (latent MMD and the cross-sample conditioning-swap control), qualitative UMAP overlays, and marker-gene biology. For rigorous claims, the main comparison is distributional agreement between real and generated cells on held-out samples (latent-space MMD / E-distance and the conditioning-swap top-1 match rate), with pseudobulk agreement as a secondary conditioning sanity check.
+bulk2scDiff is a pseudobulk-conditioned latent diffusion model for single-cell RNA-seq generation, combining VAE-based latent representation learning, sample-level pseudobulk construction, a continuous pseudobulk encoder, and FiLM-conditioned latent diffusion. It ships one canonical, manuscript-reported 1,000,000-step configuration per dataset (AML: cell lines removed; BRCA2021: VAE trained on all samples including held-out test), periodic in-training held-out MMD evaluation, and a notebook suite covering training diagnostics, held-out distribution audits (latent MMD / E-distance), qualitative UMAP overlays, and marker-gene biology. For rigorous claims, the main comparison is distributional agreement between real and generated cells on held-out samples (latent-space MMD / E-distance), with pseudobulk agreement as a secondary conditioning sanity check.
