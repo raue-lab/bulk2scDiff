@@ -11,6 +11,7 @@
 #   bash deploy_aml.sh
 #
 # Optional env-var overrides:
+#   DATA_DIR=/path/to/data.h5ad  — path to the AML AnnData (see README's Data section)
 #   FORCE_REGENERATE_SAMPLES=1   — overwrite existing .npz files
 #   NUM_SAMPLES_OVERRIDE=N       — generate N cells instead of matching real count
 
@@ -24,7 +25,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scDiffusion
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DATA_DIR="${DATA_DIR:-/share/data/transcriptomics/single cell/curated_mini_umi/AML_vanGalen_2019_NanoWell_AnnData.h5ad}"
+DATA_DIR="${DATA_DIR:-<path/to/data.h5ad>}"
 SAMPLE_KEY="${SAMPLE_KEY:-SampleID}"
 SEED="${SEED:-0}"
 SPLIT_SEED="${SPLIT_SEED:-1234}"

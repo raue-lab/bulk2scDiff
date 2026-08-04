@@ -101,7 +101,7 @@ def main():
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="/share/data/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
+        default="<path/to/data.h5ad>",
     )
     parser.add_argument("--sample_key", type=str, default="SampleID")
     parser.add_argument("--test_fraction", type=float, default=0.2)

@@ -15,10 +15,7 @@ from pathlib import Path
 import anndata as ad
 
 
-DATA_DIR_DEFAULT = (
-    "/share/data/"
-    "BreastCancer_SunnyWu_2021_AnnData.h5ad"
-)
+DATA_DIR_DEFAULT = "<path/to/data.h5ad>"
 SAMPLE_KEY_DEFAULT = "SampleID"
 GROUP_KEY_DEFAULT = "subtype"
 OUTPUT_DIR_DEFAULT = "output/sample_splits/brca2021_manual"
