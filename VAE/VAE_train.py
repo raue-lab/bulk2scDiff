@@ -101,11 +101,11 @@ def train_vae(args, return_model=False):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Train the scDiffusion VAE")
+    parser = argparse.ArgumentParser(description="Train the pseudobulk-conditioned VAE")
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="/share/data/transcriptomics/single cell/curated_mini_umi/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
+        default="<path/to/data.h5ad>",
     )
     parser.add_argument("--num_genes", type=int, default=19616)
     parser.add_argument("--hidden_dim", type=int, default=128)
