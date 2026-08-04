@@ -1,26 +1,10 @@
 #!/usr/bin/env bash
-# AML pseudobulk-conditioned full pipeline — 1,000,000-step re-run WITHOUT the
-# two cell-line samples (MUTZ3, OCI.AML3).
-#
-# This is the no-cell-line ("_nocl") sibling of aml_pseudobulk_1M_deployment.sh.
-# The two immortalized cell lines are deleted from every stage:
-#   - Splits inherit the existing aml split assignment, then drop the cell lines
-#     (both are in train), so the 9 test samples stay byte-identical and the new
-#     run is directly comparable to the original 1M run. Result: 32 train / 9 test.
-#   - The VAE is retrained with the cell lines excluded.
-#   - The diffusion backbone trains only on the 32-sample train split.
-#
-# All artifacts use the _nocl suffix so the original aml_pseudobulk_1M run is
-# left completely untouched:
-#   - SPLIT_DIR      output/sample_splits/aml_nocl
-#   - VAE            output/checkpoint/AE/my_VAE_nocl
-#   - BACKBONE       output/checkpoint/backbone/aml_pseudobulk_1M_nocl
-#   - SAMPLES        output/simulated_samples/aml_pseudobulk_1M_nocl_{train,test}
+# AML pseudobulk-conditioned full pipeline 
 #
 # Steps:
-#   0. Create train/test sample splits  (inherit aml split, exclude cell lines)
-#   1. Fine-tune the VAE                (excluding cell lines)
-#   2. Train the diffusion backbone     (train split only)
+#   0. Create train/test sample splits  
+#   1. Fine-tune the VAE                
+#   2. Train the diffusion backbone   (train split only)
 #   3. Generate one .npz per sample for the train and test splits
 #
 # Usage:
@@ -224,5 +208,5 @@ generate_for_split "${TRAIN_SAMPLE_IDS_PATH}" "${TRAIN_SAMPLE_PREFIX}" train
 echo "Generating test-split samples"
 generate_for_split "${TEST_SAMPLE_IDS_PATH}" "${TEST_SAMPLE_PREFIX}" test
 
-echo "AML no-cell-line pseudobulk pipeline complete"
+echo "AML pseudobulk pipeline complete"
 echo "Evaluate with: notebooks/aml_cond_audit_mmd.ipynb"

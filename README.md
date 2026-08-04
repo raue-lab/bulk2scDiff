@@ -16,8 +16,6 @@ This repository ships the single canonical, manuscript-reported configuration fo
 - **AML**: the two immortalized cell-line samples (`MUTZ3`, `OCI.AML3`) are excluded from both VAE and diffusion training.
 - **BRCA2021**: the VAE is fine-tuned on all 26 samples, **including the 5 held-out test samples**; only the diffusion backbone is restricted to the 21 training samples. A pilot ablation found this improves test-cell VAE reconstruction fidelity substantially (mean per-gene Pearson r: 0.166 → 0.253) versus excluding test samples from VAE training. In both datasets, held-out status is always enforced at the diffusion-training stage.
 
-A full technical walkthrough — preprocessing, pseudobulk construction, conditioning mechanism, training, sampling, and the evaluation suite — is in [docs/pseudobulk_conditioned_scdiffusion.md](docs/pseudobulk_conditioned_scdiffusion.md).
-
 ## Environment
 
 ```
@@ -92,4 +90,4 @@ The AML (van Galen 2019) and BRCA2021 (Sunny Wu 2021) datasets used to train and
 
 ## License
 
-MIT — see [LICENSE](LICENSE). This project includes code adapted from [scDiffusion](https://github.com/Erpai-Luo/scDiffusion) (MIT License, Copyright (c) 2023 Erpai Luo).
+MIT — see [LICENSE](LICENSE). This project includes code adapted from [scDiffusion](https://github.com/EperLuo/scDiffusion) (MIT License, Copyright (c) 2023 Erpai Luo).

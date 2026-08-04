@@ -174,7 +174,7 @@ def create_argparser():
     parser.add_argument(
         "--data_dir",
         type=str,
-        default="/share/data/transcriptomics/single cell/curated_mini_umi/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
+        default="/share/data/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
     )
     add_dict_to_argparser(parser, defaults)
     return parser

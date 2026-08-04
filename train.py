@@ -96,7 +96,7 @@ def main():
 
 def create_argparser():
     defaults = dict(
-        data_dir="/share/data/transcriptomics/single cell/curated_mini_umi/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
+        data_dir="/share/data/AML_vanGalen_2019_NanoWell_AnnData.h5ad",
         schedule_sampler="uniform",
         lr=1e-4,
         weight_decay=0.0001,
@@ -109,7 +109,7 @@ def create_argparser():
         resume_checkpoint="",
         use_fp16=False,
         fp16_scale_growth=1e-3,
-        vae_path="output/checkpoint/AE/my_VAE/model_seed=0_step=199999.pt",
+        vae_path="output/checkpoint/AE/model_seed=0_step=199999.pt",
         model_name="aml_pseudobulk",
         save_dir="output/checkpoint/backbone",
         sample_key="SampleID",

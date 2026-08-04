@@ -16,7 +16,7 @@ import anndata as ad
 
 
 DATA_DIR_DEFAULT = (
-    "/share/data/transcriptomics/single cell/curated_mini_umi/"
+    "/share/data/"
     "BreastCancer_SunnyWu_2021_AnnData.h5ad"
 )
 SAMPLE_KEY_DEFAULT = "SampleID"

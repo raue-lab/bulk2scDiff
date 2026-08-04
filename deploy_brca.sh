@@ -1,21 +1,10 @@
 #!/usr/bin/env bash
-# BRCA2021 pseudobulk-conditioned full pipeline — 1,000,000-step, all-train VAE.
-# This is the canonical BRCA2021 driver used for the manuscript results.
-#
-# Design (uniform with the AML no-cell-line driver, deploy_aml.sh):
-#   - The VAE is fine-tuned on ALL 26 samples, including the 5 held-out test
-#     samples. A pilot ablation showed this improves test-cell reconstruction
-#     fidelity substantially (mean per-gene Pearson r: 0.166 -> 0.253) versus
-#     fitting the VAE on the 21 training samples only.
-#   - The diffusion backbone is trained on the 21 training samples only.
-#   - Test samples are held out solely at the generative (diffusion) level, so
-#     the reported held-out evaluation is still on samples the diffusion model
-#     never saw.
+# BRCA2021 pseudobulk-conditioned full pipeline 
 #
 # Steps:
-#   1. Write the fixed subtype-balanced train/test split files (always idempotent)
-#   2. Fine-tune the VAE on ALL samples (train + held-out test)
-#   3. Train the diffusion backbone on training samples only
+#   1. Write the fixed subtype-balanced train/test split files 
+#   2. Fine-tune the VAE 
+#   3. Train the diffusion backbone (train split only)
 #   4. Generate one .npz per sample for the train and test splits
 #
 # Usage:
@@ -161,7 +150,7 @@ python split_brca.py \
   --group_key  "${GROUP_KEY}" \
   --output_dir "${SPLIT_DIR}"
 
-# ── Step 2: Fine-tune the VAE on ALL samples (train + held-out test) ──────────
+# ── Step 2: Fine-tune the VAE  ──────────
 if compgen -G "${VAE_SAVE_DIR}/model_seed=${SEED}_step=*.pt" > /dev/null; then
   echo "VAE checkpoint found, skipping VAE training"
 else
@@ -217,5 +206,5 @@ generate_for_split "${TRAIN_SAMPLE_IDS_PATH}" "${TRAIN_SAMPLE_PREFIX}" train
 echo "Generating test-split samples (5 samples)"
 generate_for_split "${TEST_SAMPLE_IDS_PATH}" "${TEST_SAMPLE_PREFIX}" test
 
-echo "BRCA2021 all-train pseudobulk pipeline complete"
+echo "BRCA pseudobulk pipeline complete"
 echo "Evaluate with: notebooks/brca_cond_audit_mmd.ipynb"
