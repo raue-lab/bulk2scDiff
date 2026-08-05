@@ -6,12 +6,12 @@ bulk2scDiff is a latent diffusion model that generates synthetic single-cell RNA
 
 ![Model architecture](docs/model_workflow.png)
 
-A pretrained SCimilarity encoder first projects single cells into a shared latent space. In parallel, cells from each sample are aggregated into a pseudobulk profile and encoded into a conditioning embedding. During training, a forward diffusion process progressively corrupts the cell latents with noise, while a FiLM-conditioned latent U-Net learns to reverse this process using the pseudobulk embedding as guidance. During generation, the model starts from random noise and, given only a pseudobulk profile from either a training or a held-out testing sample, generates a population of cell latents that are decoded by SCimilarity into synthetic single-cell expression profiles.
+A pretrained SCimilarity encoder first projects single cells into a shared latent space. In parallel, cells from each sample are aggregated into a pseudobulk profile and encoded into a conditioning embedding. During training, a forward diffusion process progressively corrupts the cell latents with noise, while a FiLM-conditioned latent U-Net learns to reverse this process using the pseudobulk embedding as guidance. During generation, the model starts from random noise and, given only a pseudobulk profile from either a training or a held-out sample, generates a population of cell latents that are decoded by SCimilarity into synthetic single-cell expression profiles.
 
 ## datasets
 
 | dataset | reference | train | held-out | notes |
-|----------|-----------|------:|---------:|-------|
+|----------|-----------|---------:|---------:|-------|
 | AML  | van Galen et al., 2019 | 32 | 9 | MUTZ3 and OCI-AML3 cell-line samples excluded |
 | BRCA | Wu et al., 2021 | 21 | 5 | Fixed subtype-balanced split |
 
@@ -41,7 +41,7 @@ bash deploy_brca.sh
 ## manual stages
 
 | # | step | script | key flags |
-|---|------|--------|-----------|
+|---|--------|--------|----------|
 | 1 | split | `split_aml.py` / `split_brca.py` | `--test_fraction` · `--exclude_sample_ids_path` |
 | 2 | VAE | `VAE/VAE_train.py` | `--num_genes` · `--state_dict` · `--include_sample_ids_path` / `--exclude_sample_ids_path` |
 | 3 | diffusion | `train.py` | `--vae_path` · `--lr_anneal_steps 1000000` · `--cond_pseudobulk True` · `--cond_embed_dim 128` · `--mmd_eval_interval` |
@@ -58,7 +58,7 @@ bash deploy_brca.sh
 | `{aml,brca}_train_progress.ipynb` | loss, gradients, train-vs-held-out MMD |
 | `{aml,brca}_cond_audit.ipynb` | MMD + E-distance heatmap, real vs. generated |
 | `{aml,brca}_multi_umap.ipynb` | pooled + per-sample UMAP, gene and latent space |
-| `{aml,brca}_global_umap_{train,test}.ipynb` | immune marker-gene overlays, training vs held-out test splits |
+| `{aml,brca}_global_umap_{train,test}.ipynb` | immune marker-gene overlays, training vs held-out sample splits |
 
 
 ## data format
@@ -73,7 +73,7 @@ Loader: [guided_diffusion/cell_datasets_loader.py](guided_diffusion/cell_dataset
 ## environment
 
 | package | version |
-|---|---|
+|----|---|
 | torch | 1.13.0 |
 | numpy | 1.23.4 |
 | anndata | 0.8.0 |
