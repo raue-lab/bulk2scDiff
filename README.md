@@ -1,21 +1,22 @@
 # bulk2scDiff
 
-Pseudobulk-conditioned latent diffusion for scRNA-seq generation. Given one sample's pseudobulk vector, generates a population of single-cell profiles whose aggregate expression matches it.
+bulk2scDiff is a latent diffusion model that generates synthetic single-cell RNA-seq populations conditioned on sample-level pseudobulk transcriptomes. By reframing bulk-to-single-cell inference as a conditional generative modeling problem, bulk2scDiff learns distributions of plausible cellular states instead of predicting summary statistics, enabling the generation of coherent single-cell landscapes compatible with the input transcriptomic profile. 
 
 ## how it works
 
 ![Model architecture](docs/model_workflow.png)
 
-A VAE first compresses single cells into a shared latent space. A diffusion model, conditioned on each cell's sample-level pseudobulk, learns to sample that latent space per sample. At generation time: hand the model a pseudobulk vector — real or held-out — and it decodes a plausible population of cells for it.
+A pretrained SCimilarity encoder first projects single cells into a shared latent space. In parallel, cells from each sample are aggregated into a pseudobulk profile and encoded into a conditioning embedding. During training, a forward diffusion process progressively corrupts the cell latents with noise, while a FiLM-conditioned latent U-Net learns to reverse this process using the pseudobulk embedding as guidance. During generation, the model starts from random noise and, given only a pseudobulk profile from either a training or a held-out testing sample, generates a population of cell latents that are decoded by SCimilarity into synthetic single-cell expression profiles.
 
 ## datasets
 
-| dataset  | source          | vae sees                            | diffusion sees        | steps      |
-|----------|-----------------|--------------------------------------|------------------------|------------|
-| AML      | van Galen 2019  | 24 samples (`MUTZ3`, `OCI.AML3` excluded) | same 24, 80/20 split   | 1,000,000  |
-| BRCA2021 | Sunny Wu 2021   | all 26 samples                       | 21 training samples    | 1,000,000  |
+| dataset | reference | train | held-out | notes |
+|----------|-----------|------:|---------:|-------|
+| AML  | van Galen et al., 2019 | 32 | 9 | MUTZ3 and OCI-AML3 cell-line samples excluded |
+| BRCA | Wu et al., 2021 | 21 | 5 | Fixed subtype-balanced split |
 
-Held-out status is always enforced at the diffusion stage. BRCA's VAE additionally trains on the 5 test samples — a pilot ablation found this raises test-cell reconstruction fidelity (mean per-gene Pearson r: 0.166 → 0.253) versus excluding them.
+- Both models were trained for **1 million diffusion steps**.
+- Held-out samples were never used during diffusion model training and were reserved exclusively for evaluating model generalization.
 
 ## run
 
@@ -24,13 +25,12 @@ bash deploy_aml.sh
 bash deploy_brca.sh
 ```
 
-| env override | effect |
+|  override | effect |
 |---|---|
 | `DATA_DIR=/path/to/data.h5ad` | override default data path |
 | `FORCE_REGENERATE_SAMPLES=1` | overwrite existing `.npz` files |
 | `NUM_SAMPLES_OVERRIDE=N` | generate N cells instead of matching real count |
 
-Both drivers are idempotent — each skips any stage whose checkpoint or sample file already exists.
 
 | output | path |
 |---|---|
@@ -42,23 +42,24 @@ Both drivers are idempotent — each skips any stage whose checkpoint or sample 
 
 | # | step | script | key flags |
 |---|------|--------|-----------|
-| 1 | split | `split_aml.py` / `split_brca.py` | `--test_fraction` · `--exclude_sample_ids_path` / fixed subtype-balanced |
+| 1 | split | `split_aml.py` / `split_brca.py` | `--test_fraction` · `--exclude_sample_ids_path` |
 | 2 | VAE | `VAE/VAE_train.py` | `--num_genes` · `--state_dict` · `--include_sample_ids_path` / `--exclude_sample_ids_path` |
 | 3 | diffusion | `train.py` | `--vae_path` · `--lr_anneal_steps 1000000` · `--cond_pseudobulk True` · `--cond_embed_dim 128` · `--mmd_eval_interval` |
 | 4 | generate | `sample.py` | `--model_path` · `--sample_id` · `--cond_pseudobulk True` · `--cond_embed_dim 128` |
 
-`--cond_embed_dim` must match between steps 3 and 4 (128 in both drivers; the code default is 256). Each generated `.npz` stores: the generated latent cells (`cell_gen`), the source `SampleID`, the conditioning pseudobulk (`input_pseudobulk`), the real cell count, and the fixed `sum` reduction mode.
+- `--cond_embed_dim` must match between steps 3 and 4. 
+
+- Each generated `.npz` stores: the generated latent cells, the source sample identifier, the conditioning pseudobulk and the real cell count.
 
 ## evaluation notebooks
 
 | notebook | covers |
 |---|---|
 | `{aml,brca}_train_progress.ipynb` | loss, gradients, train-vs-held-out MMD |
-| `{aml,brca}_cond_audit.ipynb` | MMD + E-distance heatmap, real vs. generated (primary metric) |
+| `{aml,brca}_cond_audit.ipynb` | MMD + E-distance heatmap, real vs. generated |
 | `{aml,brca}_multi_umap.ipynb` | pooled + per-sample UMAP, gene and latent space |
-| `{aml,brca}_global_umap_{train,test}.ipynb` | immune marker-gene overlays, split-highlighted (run `*_multi_umap.ipynb` once first — it caches the embedding these load) |
+| `{aml,brca}_global_umap_{train,test}.ipynb` | immune marker-gene overlays, training vs held-out test splits |
 
-AML notebooks ship with executed outputs; BRCA2021 notebooks are code-only — rerun them to see the figures.
 
 ## data format
 
