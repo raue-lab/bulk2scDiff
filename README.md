@@ -12,8 +12,8 @@ A pretrained SCimilarity encoder first projects single cells into a shared laten
 
 | dataset | reference | train | held-out | notes |
 |----------|-----------|---------:|---------:|-------|
-| AML  | van Galen et al., 2019 | 32 | 9 | MUTZ3 and OCI-AML3 cell-line samples excluded |
-| BRCA | Wu et al., 2021 | 21 | 5 | Fixed subtype-balanced split |
+| AML  | [van Galen et al., 2019](https://doi.org/10.1016/j.cell.2019.01.031) | 32 | 9 | MUTZ3 and OCI-AML3 cell-line samples excluded |
+| BRCA | [Wu et al., 2021](https://doi.org/10.1038/s41588-021-00911-1) | 21 | 5 | Fixed subtype-balanced split |
 
 - Both models were trained for **1 million diffusion steps**.
 - Held-out samples were never used during diffusion model training and were reserved exclusively for evaluating model generalization.

@@ -1,4 +1,4 @@
-"""Write the fixed BRCA2021 subtype-balanced sample split files.
+"""Write the fixed BRCA subtype-balanced sample split files.
 
 Implements a strict 80/20 train/test split (21 train, 5 test out of 26 total)
 with balanced cancer-subtype representation in both sets.  The assignment is

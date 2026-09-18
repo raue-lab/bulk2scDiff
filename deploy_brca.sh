@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# BRCA2021 pseudobulk-conditioned full pipeline 
+# BRCA pseudobulk-conditioned full pipeline 
 #
 # Steps:
-#   1. Write the fixed subtype-balanced train/test split files 
+#   1. Write the fixed subtype-balanced train/held-out split files 
 #   2. Fine-tune the VAE 
 #   3. Train the diffusion backbone (train split only)
-#   4. Generate one .npz per sample for the train and test splits
+#   4. Generate one .npz per sample for the train and held-out splits
 #
 # Usage:
 #   bash deploy_brca.sh
